@@ -4,7 +4,8 @@ from bs4 import BeautifulSoup
 import requests
 import os
 from dotenv import load_dotenv, set_key
-
+import urllib.request
+import ssl
 st.set_page_config(page_title="You Sure About That?", page_icon="🤷")
 st.image("ysat.png", width=400)
 
@@ -16,7 +17,6 @@ if not openai.api_key:
     set_key('.env', 'OPENAI_API_KEY', openai.api_key)
     os.environ['OPENAI_API_KEY'] = openai.api_key
 
-# OpenAI API function
 def call_openai_api(user_input):
     try:
         response = openai.Completion.create(
@@ -28,21 +28,29 @@ def call_openai_api(user_input):
     except Exception as e:
         return str(e)
 
+def bypass_ssl_verification():
+    ssl._create_default_https_context = ssl._create_unverified_context
+
 def call_google_api(user_input):
     try:
+        bypass_ssl_verification()
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
-        search_url = f"https://www.google.com/search?q={user_input}"
-        search_response = requests.get(search_url, headers=headers)
-        search_soup = BeautifulSoup(search_response.text, 'html.parser')
+
+        search_url = f"https://www.google.com/search?q={urllib.parse.quote(user_input)}"
+        request = urllib.request.Request(search_url, headers=headers)
+        with urllib.request.urlopen(request) as search_response:
+            search_soup = BeautifulSoup(search_response.read(), 'html.parser')
 
         first_result = search_soup.find('div', class_='tF2Cxc')
         if first_result:
             page_url = first_result.find('a')['href']
 
-            page_response = requests.get(page_url, headers=headers)
-            page_soup = BeautifulSoup(page_response.text, 'html.parser')
+            page_request = urllib.request.Request(page_url, headers=headers)
+            with urllib.request.urlopen(page_request) as page_response:
+                page_soup = BeautifulSoup(page_response.read(), 'html.parser')
 
             page_text = page_soup.get_text(separator=' ', strip=True)
             
